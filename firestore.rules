@@ -1,0 +1,42 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Users can read and write their own user document
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && 
+                  get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+    
+    // Elections - public read, admin write
+    match /elections/{electionId} {
+      allow read: if true; // Public read access for viewing elections
+      allow write: if request.auth != null && 
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+    
+    // Candidates - public read, admin write
+    match /candidates/{candidateId} {
+      allow read: if true; // Public read access for viewing candidates
+      allow write: if request.auth != null && 
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+    
+    // Votes - restricted access
+    match /votes/{voteId} {
+      // Users can only create votes for themselves
+      allow create: if request.auth != null &&
+                    request.auth.uid == request.resource.data.userId;
+      
+      // Users can read their own votes, admins can read all votes
+      allow read: if request.auth != null && 
+                  (request.auth.uid == resource.data.userId ||
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin");
+      
+      // Only admins can update/delete votes (for administrative purposes)
+      allow update, delete: if request.auth != null && 
+                            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+  }
+}
